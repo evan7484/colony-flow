@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Colony Flow</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="app" class="hidden">
+  <header id="topbar">
+    <button id="btn-back" title="레벨 선택">←</button>
+    <div id="level-title">레벨 1</div>
+    <button id="btn-retry" title="다시 시작">↺</button>
+  </header>
+
+  <div id="board-space"></div>
+  <div id="nest-gap"></div>
+
+  <div id="slots"></div>
+  <div id="tray"></div>
+
+  <div id="boosters">
+    <button class="booster" id="bst-slot"><span class="b-icon">➕</span><span class="b-name">슬롯</span></button>
+    <button class="booster" id="bst-shuffle"><span class="b-icon">🔀</span><span class="b-name">셔플</span></button>
+    <button class="booster" id="bst-pickup"><span class="b-icon">🫳</span><span class="b-name">회수</span></button>
+    <button class="booster" id="bst-vacuum"><span class="b-icon">🌪</span><span class="b-name">진공</span></button>
+  </div>
+</div>
+
+<div id="rescue-banner" class="hidden">⚠️ 길이 막혔어요! 부스터로 위기를 벗어나세요 <button id="btn-giveup">포기</button></div>
+<div id="pause-badge" class="hidden">⏸ 일시정지 — Space로 재개</div>
+<div id="toast"></div>
+
+<div class="overlay" id="menu-overlay">
+  <div class="panel menu-panel">
+    <h1>🐜 Colony Flow</h1>
+    <p class="tagline">블록을 탭하면 개미들이 같은 색 큐브를 나릅니다.<br>바깥쪽부터 벗겨내며 숨겨진 픽셀 아트를 발견하세요!</p>
+    <div id="level-grid"></div>
+    <p id="menu-progress" class="progress"></p>
+    <ul class="howto">
+      <li>🧊 블록의 숫자만큼 개미가 큐브를 나릅니다 — 다 나르면 슬롯이 비워져요</li>
+      <li>🚫 노출되지 않은(갇힌) 색은 먹을 수 없어요 — 슬롯 5칸이 전부 막히면 패배!</li>
+      <li>🔗 연결 블록은 두 개가 함께 슬롯을 차지합니다</li>
+    </ul>
+  </div>
+</div>
+
+<div class="overlay hidden" id="win-overlay">
+  <div class="panel">
+    <h1 id="win-title">클리어!</h1>
+    <p id="win-sub" class="tagline"></p>
+    <canvas id="win-art"></canvas>
+    <div class="btn-row">
+      <button id="btn-next" class="primary">다음 레벨 →</button>
+      <button id="btn-menu2">레벨 선택</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="lose-overlay">
+  <div class="panel">
+    <h1>😵 길이 막혔어요</h1>
+    <p class="tagline">슬롯이 전부 먹을 수 없는 색으로 가득 찼습니다.<br>노출된 색부터 계획적으로 보내보세요!</p>
+    <div class="btn-row">
+      <button id="btn-retry2" class="primary">다시 시도</button>
+      <button id="btn-menu3">레벨 선택</button>
+    </div>
+  </div>
+</div>
+
+<script src="levels.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

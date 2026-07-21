@@ -1,0 +1,323 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: #17110b;
+  font-family: "Pretendard", -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  color: #e8ddc8;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#game { position: fixed; inset: 0; display: block; }
+
+.hidden { display: none !important; }
+
+/* ---------- 플레이 레이아웃 ---------- */
+#app {
+  position: fixed; inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  max-width: 560px;
+  margin: 0 auto;
+  pointer-events: none;
+  z-index: 5;
+}
+#app > * { pointer-events: none; }
+#app button { pointer-events: auto; }
+
+#topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+}
+#topbar button {
+  width: 40px; height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(232,221,200,0.2);
+  background: rgba(36,27,18,0.85);
+  color: #e8ddc8;
+  font-size: 19px;
+  cursor: pointer;
+}
+#topbar button:active { transform: scale(0.93); }
+#level-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f4c96b;
+  background: rgba(36,27,18,0.85);
+  border: 1px solid rgba(232,221,200,0.15);
+  padding: 8px 18px;
+  border-radius: 999px;
+}
+
+#board-space { flex: 1 1 auto; min-height: 120px; }
+#nest-gap { height: 44px; flex: none; }
+
+/* ---------- 슬롯 ---------- */
+#slots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 10px 10px;
+}
+.slot {
+  width: 58px; height: 58px;
+  border-radius: 14px;
+  border: 2px dashed rgba(232,221,200,0.3);
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+/* ---------- 트레이 ---------- */
+#tray {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: flex-start;
+  gap: 7px;
+  padding: 10px 12px;
+  min-height: 118px;
+  max-height: 178px;
+  overflow-y: auto;
+  background: rgba(30,22,14,0.9);
+  border-top: 1px solid rgba(232,221,200,0.12);
+  pointer-events: auto;
+}
+
+/* ---------- 블록 ---------- */
+.block {
+  position: relative;
+  width: 50px; height: 50px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(180deg, var(--c), var(--c-dark));
+  box-shadow:
+    inset 0 3px 0 rgba(255,255,255,0.35),
+    inset 0 -4px 0 rgba(0,0,0,0.25),
+    0 3px 6px rgba(0,0,0,0.4);
+  transition: transform 0.1s;
+}
+.block:active { transform: scale(0.92); }
+.block .num {
+  font-size: 19px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 2px 3px rgba(0,0,0,0.55);
+}
+.link-badge {
+  position: absolute;
+  top: -7px; right: -7px;
+  font-size: 13px;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+}
+.slot .block { width: 48px; height: 48px; }
+
+.block.drop-in { animation: dropIn 0.25s ease-out; }
+@keyframes dropIn {
+  0% { transform: translateY(-16px) scale(1.15); }
+  100% { transform: translateY(0) scale(1); }
+}
+.block.bump { animation: bump 0.15s ease-out; }
+@keyframes bump { 50% { transform: scale(1.13); } }
+.block.shake { animation: shake 0.35s; }
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+/* 부스터 타겟팅 모드: 슬롯 블록 강조 */
+.mode-pickup .slot .block,
+.mode-vacuum .slot .block {
+  animation: target 0.7s infinite;
+  outline: 3px solid #f4c96b;
+  outline-offset: 2px;
+}
+@keyframes target { 50% { transform: scale(1.08); } }
+
+/* ---------- 부스터 바 ---------- */
+#boosters {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+  background: rgba(30,22,14,0.9);
+}
+.booster {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 66px;
+  padding: 8px 0;
+  border-radius: 14px;
+  border: 1px solid rgba(232,221,200,0.22);
+  background: rgba(58,44,28,0.9);
+  color: #e8ddc8;
+  cursor: pointer;
+}
+.booster .b-icon { font-size: 19px; }
+.booster .b-name { font-size: 11px; font-weight: 700; }
+.booster:disabled { opacity: 0.32; cursor: default; }
+.booster.active {
+  border-color: #f4c96b;
+  background: rgba(244,201,107,0.22);
+  animation: target 0.7s infinite;
+}
+.booster:not(:disabled):active { transform: scale(0.93); }
+
+/* ---------- 오버레이 ---------- */
+.overlay {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(10,7,4,0.8);
+  backdrop-filter: blur(5px);
+  z-index: 20;
+  overflow-y: auto;
+}
+.panel {
+  max-width: 480px;
+  width: calc(100% - 40px);
+  margin: 20px;
+  padding: 28px 30px;
+  background: #241b12;
+  border: 1px solid rgba(232,221,200,0.18);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  text-align: center;
+}
+.panel h1 { font-size: 26px; color: #f4c96b; margin-bottom: 8px; }
+.tagline { color: #b3a488; font-size: 13.5px; line-height: 1.6; margin-bottom: 18px; }
+.progress { color: #8fd47a; font-weight: 700; font-size: 14px; margin: 12px 0 14px; }
+
+#level-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+.level-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 2px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(232,221,200,0.2);
+  background: rgba(58,44,28,0.8);
+  color: #e8ddc8;
+  cursor: pointer;
+}
+.level-btn:not(.locked):hover { border-color: #f4c96b; background: rgba(244,201,107,0.15); }
+.level-btn .lv-num { font-size: 17px; font-weight: 800; }
+.level-btn .lv-name { font-size: 11px; color: #b3a488; }
+.level-btn .lv-check { font-size: 11px; color: #8fd47a; font-weight: 800; }
+.level-btn.locked { opacity: 0.45; cursor: default; }
+.level-btn.cleared { border-color: rgba(143,212,122,0.5); }
+
+.howto {
+  list-style: none;
+  text-align: left;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #b3a488;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#win-art {
+  display: block;
+  margin: 6px auto 18px;
+  max-width: 100%;
+  image-rendering: pixelated;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.3);
+  padding: 8px;
+}
+
+.btn-row { display: flex; justify-content: center; gap: 10px; }
+.panel .btn-row button, #btn-giveup {
+  padding: 11px 22px;
+  font-size: 14.5px;
+  font-weight: 700;
+  font-family: inherit;
+  border-radius: 999px;
+  border: 1px solid rgba(232,221,200,0.25);
+  background: rgba(58,44,28,0.9);
+  color: #e8ddc8;
+  cursor: pointer;
+}
+.panel .btn-row button.primary {
+  color: #241b12;
+  background: linear-gradient(180deg, #f4c96b, #d9a53f);
+  border: none;
+}
+.panel .btn-row button:active { transform: scale(0.95); }
+
+/* ---------- 배너/토스트 ---------- */
+#rescue-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 190px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: rgba(90,30,24,0.95);
+  border: 1px solid #e8705f;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  z-index: 15;
+  white-space: nowrap;
+  animation: target 0.9s infinite;
+}
+#btn-giveup { padding: 6px 14px; font-size: 12px; }
+
+#pause-badge {
+  position: fixed;
+  top: 64px; left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 18px;
+  background: rgba(20,14,8,0.85);
+  border: 1px solid rgba(232,221,200,0.2);
+  border-radius: 999px;
+  font-size: 13px;
+  z-index: 15;
+}
+
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 240px;
+  transform: translateX(-50%) translateY(8px);
+  padding: 9px 18px;
+  background: rgba(20,14,8,0.92);
+  border: 1px solid rgba(244,201,107,0.4);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+  z-index: 30;
+  white-space: nowrap;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+@media (max-height: 700px) {
+  #tray { min-height: 96px; max-height: 140px; }
+  .slot { width: 50px; height: 50px; }
+  .slot .block { width: 42px; height: 42px; }
+  .block { width: 44px; height: 44px; }
+}
