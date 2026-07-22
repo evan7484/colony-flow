@@ -46,13 +46,38 @@ html, body {
 }
 #topbar button:active { transform: scale(0.93); }
 #level-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: #f4c96b;
   background: rgba(36,27,18,0.85);
   border: 1px solid rgba(232,221,200,0.15);
-  padding: 8px 18px;
+  padding: 8px 14px;
   border-radius: 999px;
+  white-space: nowrap;
+}
+
+#speed-group {
+  display: flex;
+  gap: 2px;
+  background: rgba(36,27,18,0.85);
+  border: 1px solid rgba(232,221,200,0.2);
+  border-radius: 999px;
+  padding: 3px;
+}
+.speed-btn {
+  width: 34px !important;
+  height: 30px !important;
+  border: none !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  color: #b3a488 !important;
+  font-size: 12px !important;
+  font-weight: 800;
+  cursor: pointer;
+}
+.speed-btn.on {
+  background: linear-gradient(180deg, #f4c96b, #d9a53f) !important;
+  color: #241b12 !important;
 }
 
 #board-space { flex: 1 1 auto; min-height: 120px; }
@@ -226,6 +251,24 @@ html, body {
   outline: none;
 }
 #nick-input:focus { border-color: #f4c96b; }
+#pin-input {
+  width: 92px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(232,221,200,0.25);
+  background: rgba(0,0,0,0.35);
+  color: #e8ddc8;
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  letter-spacing: 3px;
+}
+#pin-input:focus { border-color: #f4c96b; }
+.nick-hint {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: #8a7c64;
+}
 #btn-nick-save, #btn-nick-change {
   padding: 9px 18px;
   border-radius: 999px;

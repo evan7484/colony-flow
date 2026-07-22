@@ -17,14 +17,34 @@ const RANK_ENABLED = () => FIREBASE.projectId && FIREBASE.apiKey;
 const fsBase = () =>
   `https://firestore.googleapis.com/v1/projects/${FIREBASE.projectId}/databases/(default)/documents`;
 
-// 닉네임 중복 확인 (문서 존재 여부)
-async function nickExists(nickname) {
+// 간단 해시(cyrb53) — 강력한 보안용이 아니라 PIN 원문이 서버에 남지 않게 하는 용도
+function pinHashOf(nickname, pin) {
+  const str = nickname + ":" + pin;
+  let h1 = 0xdeadbeef ^ 7484, h2 = 0x41c6ce57 ^ 7484;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16).padStart(14, "0");
+}
+
+const validPin = (pin) => /^\d{4}$/.test(pin);
+
+// 플레이어 조회 (없으면 null)
+async function getPlayer(nickname) {
   const res = await fetch(
     `${fsBase()}/players/${encodeURIComponent(nickname)}?key=${FIREBASE.apiKey}`
   );
-  if (res.status === 404) return false;
-  if (res.ok) return true;
-  throw new Error(`lookup ${res.status}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`lookup ${res.status}`);
+  const d = await res.json();
+  return {
+    bestLevel: parseInt(d.fields.bestLevel.integerValue, 10),
+    pinHash: d.fields.pinHash ? d.fields.pinHash.stringValue : null,
+  };
 }
 
 // 상위 3명 조회 (bestLevel 내림차순, 예약만 하고 클리어 없는 레벨 0은 제외)
@@ -58,9 +78,9 @@ async function fetchTop3() {
     }));
 }
 
-// 최고 기록 제출 (더 낮거나 같은 레벨이면 규칙이 거부 → 조용히 무시)
-async function submitScore(nickname, bestLevel) {
-  if (!RANK_ENABLED() || !nickname) return false;
+// 최고 기록 제출 (PIN 해시 필수 — 규칙이 소유권과 단조 증가를 검사)
+async function submitScore(nickname, bestLevel, pinHash) {
+  if (!RANK_ENABLED() || !nickname || !pinHash) return false;
   // 항상 전체 문서를 보내므로 updateMask는 쓰지 않는다
   // (updateMask를 붙이면 신규 생성 시 보안 규칙 평가가 깨지는 것을 확인함)
   const url = `${fsBase()}/players/${encodeURIComponent(nickname)}?key=${FIREBASE.apiKey}`;
@@ -72,6 +92,7 @@ async function submitScore(nickname, bestLevel) {
         nickname: { stringValue: nickname },
         bestLevel: { integerValue: String(bestLevel) },
         updatedAt: { integerValue: String(Date.now()) },
+        pinHash: { stringValue: pinHash },
       },
     }),
   });

@@ -13,6 +13,11 @@
   <header id="topbar">
     <button id="btn-back" title="레벨 선택">←</button>
     <div id="level-title">레벨 1</div>
+    <div id="speed-group">
+      <button class="speed-btn on" data-speed="1">1x</button>
+      <button class="speed-btn" data-speed="2">2x</button>
+      <button class="speed-btn" data-speed="3">3x</button>
+    </div>
     <button id="btn-retry" title="다시 시작">↺</button>
   </header>
 
@@ -41,9 +46,11 @@
 
     <div id="nick-box">
       <div id="nick-form">
-        <input id="nick-input" maxlength="12" placeholder="닉네임 (한글/영문 2~12자)" autocomplete="off">
+        <input id="nick-input" maxlength="12" placeholder="닉네임 (2~12자)" autocomplete="off">
+        <input id="pin-input" maxlength="4" inputmode="numeric" type="password" placeholder="PIN 4자리" autocomplete="off">
         <button id="btn-nick-save">로그인</button>
       </div>
+      <p class="nick-hint">처음이면 등록, 기존 닉네임이면 PIN 확인 후 이어하기</p>
       <div id="nick-view" class="hidden">
         <span>🐜 <b id="nick-name"></b>님</span>
         <button id="btn-nick-change">변경</button>

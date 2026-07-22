@@ -49,6 +49,7 @@ const S = {
   particles: [],
   boosters: { slot: 1, shuffle: 1, pickup: 1, vacuum: 1 },
   mode: "none",              // none | pickup | vacuum
+  speed: 1,                  // 게임 배속 (1x/2x/3x 버튼)
   paused: false,
   // 레이아웃 캐시
   cell: 24, bx: 0, by: 0, nest: { x: 0, y: 0 },
@@ -64,7 +65,9 @@ function saveCleared(n) {
 
 // ---------- 닉네임 / 랭킹 ----------
 const NICK_KEY = "colony-flow-nick";
+const PIN_KEY = "colony-flow-pinhash";
 const getNick = () => localStorage.getItem(NICK_KEY) || "";
+const getPinHash = () => localStorage.getItem(PIN_KEY) || "";
 
 function renderNick() {
   const nick = getNick();
@@ -73,11 +76,17 @@ function renderNick() {
   if (nick) $("nick-name").textContent = nick;
 }
 
+function loginLocal(nick, hash) {
+  localStorage.setItem(NICK_KEY, nick);
+  localStorage.setItem(PIN_KEY, hash);
+}
+
 function bindNickUI() {
-  let ownedNick = getNick(); // 이 기기에서 소유했던 닉네임
   $("btn-nick-save").addEventListener("click", async () => {
     const nick = $("nick-input").value.trim();
+    const pin = $("pin-input").value.trim();
     if (!validNickname(nick)) { toast("닉네임은 한글/영문/숫자 2~12자예요!"); return; }
+    if (!validPin(pin)) { toast("PIN은 숫자 4자리예요!"); return; }
     if (!RANK_ENABLED()) {
       localStorage.setItem(NICK_KEY, nick);
       renderNick();
@@ -86,35 +95,47 @@ function bindNickUI() {
     const btn = $("btn-nick-save");
     btn.disabled = true;
     try {
-      // 중복 닉네임 거부 → 통과하면 즉시 자리 예약 (레벨 0 문서 생성)
-      // 이 기기에서 쓰던 자기 닉네임으로 되돌아오는 경우는 허용
-      const isMine = nick === ownedNick;
-      if (!isMine && (await nickExists(nick))) {
-        toast("이미 사용 중인 닉네임이에요!");
+      const hash = pinHashOf(nick, pin);
+      const player = await getPlayer(nick);
+      if (!player) {
+        // 신규 등록: 즉시 자리 예약 (진행 기록이 있으면 그 레벨로)
+        const ok = await submitScore(nick, loadCleared(), hash);
+        if (!ok) { toast("이미 사용 중인 닉네임이에요!"); return; } // 동시 등록 레이스
+        loginLocal(nick, hash);
+        toast(`${nick}님, 등록 완료! PIN을 꼭 기억하세요 🐜`);
+      } else if (!player.pinHash) {
+        // PIN 도입 이전 계정: 첫 로그인이 PIN을 설정하며 소유권 획득
+        await submitScore(nick, Math.max(player.bestLevel, loadCleared()), hash);
+        if (player.bestLevel > loadCleared()) saveCleared(player.bestLevel);
+        loginLocal(nick, hash);
+        toast(`${nick}님, PIN이 설정됐어요! 🔐`);
+      } else if (player.pinHash === hash) {
+        // 재로그인: 서버 ↔ 로컬 진행도 동기화 (다른 기기에서 이어하기)
+        if (player.bestLevel > loadCleared()) saveCleared(player.bestLevel);
+        else if (loadCleared() > player.bestLevel) submitScore(nick, loadCleared(), hash);
+        loginLocal(nick, hash);
+        toast(`${nick}님, 다시 오셨네요! 🐜`);
+      } else {
+        toast("PIN이 일치하지 않아요!");
         return;
       }
-      const ok = await submitScore(nick, loadCleared());
-      if (!ok && !isMine) {
-        toast("이미 사용 중인 닉네임이에요!"); // 동시 등록 레이스
-        return;
-      }
-      localStorage.setItem(NICK_KEY, nick);
-      ownedNick = nick;
-      renderNick();
-      renderRanking();
-      toast(`${nick}님, 환영합니다! 🐜`);
+      renderMenu();
     } catch (e) {
       toast("서버 연결에 실패했어요 — 잠시 후 다시 시도해주세요");
     } finally {
       btn.disabled = false;
     }
   });
-  $("nick-input").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") $("btn-nick-save").click();
-  });
+  for (const id of ["nick-input", "pin-input"]) {
+    $(id).addEventListener("keydown", (e) => {
+      if (e.key === "Enter") $("btn-nick-save").click();
+    });
+  }
   $("btn-nick-change").addEventListener("click", () => {
     $("nick-input").value = getNick();
+    $("pin-input").value = "";
     localStorage.removeItem(NICK_KEY);
+    localStorage.removeItem(PIN_KEY);
     renderNick();
   });
 }
@@ -628,7 +649,7 @@ function checkWin() {
     const cleared = loadCleared();
     if (S.levelIndex + 1 > cleared) {
       saveCleared(S.levelIndex + 1);
-      submitScore(getNick(), S.levelIndex + 1); // 최고 기록 갱신 시 랭킹 제출
+      submitScore(getNick(), S.levelIndex + 1, getPinHash()); // 최고 기록 갱신 시 랭킹 제출
     }
     for (let k = 0; k < 40; k++) {
       burst(S.bx + Math.random() * S.cell * S.level.gw, S.by + Math.random() * S.cell * S.level.gh,
@@ -692,20 +713,11 @@ function hasExposedTileFor(color) {
 function update(dt) {
   if (S.screen !== "play" || S.status !== "playing" || S.paused) return;
 
-  // 슬롯이 전부 차면 개미 3배속 (빨리 비워서 게임을 이어갈 수 있게)
-  const rush = S.slots.every((s) => s.block) ? 3 : 1;
-  if (rush > 1 && !S.rushToast) {
-    S.rushToast = true;
-    toast("⚡ 슬롯 만석! 개미들이 서두릅니다");
-  } else if (rush === 1) {
-    S.rushToast = false;
-  }
-
   // 슬롯 블록마다 개미 파견
   for (const slot of S.slots) {
     const b = slot.block;
     if (!b) continue;
-    b.cd -= dt * rush;
+    b.cd -= dt;
     if (b.cd <= 0 && b.antsOut < MAX_ANTS_PER_BLOCK && b.antsOut < b.remaining) {
       const route = findRoute(b.color);
       if (route) {
@@ -718,8 +730,8 @@ function update(dt) {
   // 개미 이동
   for (let i = S.ants.length - 1; i >= 0; i--) {
     const a = S.ants[i];
-    a.wig += dt * 10 * rush;
-    a.t += (dt * ANT_SPEED * rush) / a.path.len;
+    a.wig += dt * 10;
+    a.t += (dt * ANT_SPEED) / a.path.len;
     if (a.t < 1) continue;
 
     if (a.phase === "go") {
@@ -980,10 +992,17 @@ let lastT = 0;
 function loop(t) {
   const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016);
   lastT = t;
-  update(dt);
+  update(dt * S.speed);
   draw();
   requestAnimationFrame(loop);
 }
+
+document.querySelectorAll(".speed-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    S.speed = parseInt(btn.dataset.speed, 10) || 1;
+    document.querySelectorAll(".speed-btn").forEach((b) => b.classList.toggle("on", b === btn));
+  });
+});
 
 bindNickUI();
 openMenu();
