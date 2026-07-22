@@ -6,7 +6,7 @@
 // 선언한 PALETTE / LEVELS / buildLevel / computeExposed를 그대로 사용
 // ============================================================
 
-const ANT_SPEED = 340;          // px/s (우회 경로를 걷기 때문에 약간 빠르게)
+const ANT_SPEED = 250;          // px/s
 const MAX_ANTS_PER_BLOCK = 4;   // 블록당 동시 파견 개미 수
 const SPAWN_INTERVAL = 0.22;    // 같은 블록의 개미 출발 간격(s)
 const BASE_SLOTS = 5;
@@ -583,13 +583,7 @@ function update(dt) {
       a.phase = "return";
       const touch = pathPos(a.path, 1);
       a.t = 0;
-      let tx = S.nest.x, ty = S.nest.y + 20;
-      if (a.block.el) {
-        const r = a.block.el.getBoundingClientRect();
-        tx = r.left + r.width / 2;
-        ty = r.top + r.height / 2;
-      }
-      // 귀환도 걸어서: 빈 칸을 따라 보드 아래로 나간 뒤 슬롯으로
+      // 귀환도 걸어서: 빈 칸을 따라 보드 아래로 나간 뒤 개미굴 구멍 속으로
       const { EW, EH } = extDims();
       const { dist: d2, parent: p2 } = bfsFrom(a.lastCell);
       let exit = -1, bestCost = Infinity;
@@ -597,7 +591,7 @@ function update(dt) {
         const i = (EH - 1) * EW + ex;
         if (d2[i] < 0) continue;
         const p = extCenter(i);
-        const cost = d2[i] * S.cell + Math.abs(p.x - tx) * 0.6;
+        const cost = d2[i] * S.cell + Math.abs(p.x - S.nest.x) * 0.6;
         if (cost < bestCost) { bestCost = cost; exit = i; }
       }
       const pts = [{ x: touch.x, y: touch.y }];
@@ -607,7 +601,7 @@ function update(dt) {
           pts.push({ x: p.x + jitter(), y: p.y + jitter() });
         }
       }
-      pts.push({ x: tx, y: ty });
+      pts.push({ x: S.nest.x, y: S.nest.y });
       a.path = makeWalkPath(pts);
     } else {
       // 슬롯 도착: 배달 완료
@@ -747,11 +741,16 @@ function drawAnt(a) {
   const p2 = pathPos(a.path, clamp(a.t + 0.02, 0, 1));
   const ang = Math.atan2(p2.y - p.y, p2.x - p.x);
   const sway = Math.sin(a.wig) * 1.2;
+  // 개미굴 출입 연출: 나올 때 커지고, 들어갈 때 줄어들며 사라진다
+  let hole = 1;
+  if (a.phase === "go") hole = clamp(a.t / 0.06, 0.15, 1);
+  else hole = clamp((1 - a.t) / 0.06, 0.15, 1);
   ctx.save();
+  ctx.globalAlpha = hole;
   ctx.translate(p.x, p.y);
   ctx.rotate(ang);
   ctx.translate(0, sway);
-  ctx.scale(ANT_SCALE, ANT_SCALE);
+  ctx.scale(ANT_SCALE * hole, ANT_SCALE * hole);
   // 다리
   ctx.strokeStyle = "#2e2318";
   ctx.lineWidth = 0.7;
