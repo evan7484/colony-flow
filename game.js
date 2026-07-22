@@ -74,15 +74,40 @@ function renderNick() {
 }
 
 function bindNickUI() {
-  $("btn-nick-save").addEventListener("click", () => {
+  let ownedNick = getNick(); // 이 기기에서 소유했던 닉네임
+  $("btn-nick-save").addEventListener("click", async () => {
     const nick = $("nick-input").value.trim();
     if (!validNickname(nick)) { toast("닉네임은 한글/영문/숫자 2~12자예요!"); return; }
-    localStorage.setItem(NICK_KEY, nick);
-    renderNick();
-    toast(`${nick}님, 환영합니다! 🐜`);
-    // 이미 진행한 기록이 있으면 즉시 랭킹에 반영
-    const cleared = loadCleared();
-    if (cleared > 0) submitScore(nick, cleared).then((ok) => ok && renderRanking());
+    if (!RANK_ENABLED()) {
+      localStorage.setItem(NICK_KEY, nick);
+      renderNick();
+      return;
+    }
+    const btn = $("btn-nick-save");
+    btn.disabled = true;
+    try {
+      // 중복 닉네임 거부 → 통과하면 즉시 자리 예약 (레벨 0 문서 생성)
+      // 이 기기에서 쓰던 자기 닉네임으로 되돌아오는 경우는 허용
+      const isMine = nick === ownedNick;
+      if (!isMine && (await nickExists(nick))) {
+        toast("이미 사용 중인 닉네임이에요!");
+        return;
+      }
+      const ok = await submitScore(nick, loadCleared());
+      if (!ok && !isMine) {
+        toast("이미 사용 중인 닉네임이에요!"); // 동시 등록 레이스
+        return;
+      }
+      localStorage.setItem(NICK_KEY, nick);
+      ownedNick = nick;
+      renderNick();
+      renderRanking();
+      toast(`${nick}님, 환영합니다! 🐜`);
+    } catch (e) {
+      toast("서버 연결에 실패했어요 — 잠시 후 다시 시도해주세요");
+    } finally {
+      btn.disabled = false;
+    }
   });
   $("nick-input").addEventListener("keydown", (e) => {
     if (e.key === "Enter") $("btn-nick-save").click();
@@ -667,11 +692,20 @@ function hasExposedTileFor(color) {
 function update(dt) {
   if (S.screen !== "play" || S.status !== "playing" || S.paused) return;
 
+  // 슬롯이 전부 차면 개미 3배속 (빨리 비워서 게임을 이어갈 수 있게)
+  const rush = S.slots.every((s) => s.block) ? 3 : 1;
+  if (rush > 1 && !S.rushToast) {
+    S.rushToast = true;
+    toast("⚡ 슬롯 만석! 개미들이 서두릅니다");
+  } else if (rush === 1) {
+    S.rushToast = false;
+  }
+
   // 슬롯 블록마다 개미 파견
   for (const slot of S.slots) {
     const b = slot.block;
     if (!b) continue;
-    b.cd -= dt;
+    b.cd -= dt * rush;
     if (b.cd <= 0 && b.antsOut < MAX_ANTS_PER_BLOCK && b.antsOut < b.remaining) {
       const route = findRoute(b.color);
       if (route) {
@@ -684,8 +718,8 @@ function update(dt) {
   // 개미 이동
   for (let i = S.ants.length - 1; i >= 0; i--) {
     const a = S.ants[i];
-    a.wig += dt * 10;
-    a.t += (dt * ANT_SPEED) / a.path.len;
+    a.wig += dt * 10 * rush;
+    a.t += (dt * ANT_SPEED * rush) / a.path.len;
     if (a.t < 1) continue;
 
     if (a.phase === "go") {

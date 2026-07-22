@@ -16,7 +16,7 @@ service cloud.firestore {
           && d.nickname == nick
           && nick.size() >= 2 && nick.size() <= 36
           && d.bestLevel is int
-          && d.bestLevel >= 1 && d.bestLevel <= 15
+          && d.bestLevel >= 0 && d.bestLevel <= 15
           && d.updatedAt is int;
       }
     }

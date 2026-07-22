@@ -17,7 +17,17 @@ const RANK_ENABLED = () => FIREBASE.projectId && FIREBASE.apiKey;
 const fsBase = () =>
   `https://firestore.googleapis.com/v1/projects/${FIREBASE.projectId}/databases/(default)/documents`;
 
-// 상위 3명 조회 (bestLevel 내림차순)
+// 닉네임 중복 확인 (문서 존재 여부)
+async function nickExists(nickname) {
+  const res = await fetch(
+    `${fsBase()}/players/${encodeURIComponent(nickname)}?key=${FIREBASE.apiKey}`
+  );
+  if (res.status === 404) return false;
+  if (res.ok) return true;
+  throw new Error(`lookup ${res.status}`);
+}
+
+// 상위 3명 조회 (bestLevel 내림차순, 예약만 하고 클리어 없는 레벨 0은 제외)
 async function fetchTop3() {
   if (!RANK_ENABLED()) return null;
   const res = await fetch(`${fsBase()}:runQuery?key=${FIREBASE.apiKey}`, {
@@ -26,6 +36,13 @@ async function fetchTop3() {
     body: JSON.stringify({
       structuredQuery: {
         from: [{ collectionId: "players" }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: "bestLevel" },
+            op: "GREATER_THAN_OR_EQUAL",
+            value: { integerValue: "1" },
+          },
+        },
         orderBy: [{ field: { fieldPath: "bestLevel" }, direction: "DESCENDING" }],
         limit: 3,
       },
