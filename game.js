@@ -662,7 +662,8 @@ function layout() {
   S.nest = { x: ng.left + ng.width / 2, y: ng.top + ng.height / 2 };
 }
 
-function drawCube(x, y, size, hex, dim) {
+// 블록 DOM과 동일한 색 조합(원색 → 35% 어둡게)으로 통일. 노출 여부에 따른 명암 차이 없음
+function drawCube(x, y, size, hex) {
   const r = size * 0.18;
   const inset = size * 0.06;
   const s = size - inset * 2;
@@ -671,18 +672,16 @@ function drawCube(x, y, size, hex, dim) {
   ctx.roundRect(x + inset, y + inset + s * 0.10, s, s * 0.92, r);
   ctx.fill();
   const g = ctx.createLinearGradient(0, y, 0, y + s);
-  g.addColorStop(0, shade(hex, dim ? 0.05 : 0.25));
-  g.addColorStop(1, shade(hex, dim ? -0.25 : -0.05));
+  g.addColorStop(0, hex);
+  g.addColorStop(1, shade(hex, -0.35));
   ctx.fillStyle = g;
   ctx.beginPath();
   ctx.roundRect(x + inset, y + inset, s, s * 0.9, r);
   ctx.fill();
-  if (dim) {
-    ctx.fillStyle = "rgba(20,14,8,0.34)";
-    ctx.beginPath();
-    ctx.roundRect(x + inset, y + inset, s, s, r);
-    ctx.fill();
-  }
+  ctx.fillStyle = "rgba(255,255,255,0.30)";
+  ctx.beginPath();
+  ctx.roundRect(x + inset + s * 0.08, y + inset + s * 0.05, s * 0.84, s * 0.16, r * 0.6);
+  ctx.fill();
 }
 
 function drawBoard() {
@@ -704,7 +703,7 @@ function drawBoard() {
     if (chColor === "." || !S.alive[i]) continue;
     const x = bx + (i % L.gw) * cell;
     const y = by + ((i / L.gw) | 0) * cell;
-    drawCube(x, y, cell, PALETTE[chColor].hex, !S.exposed.has(i));
+    drawCube(x, y, cell, PALETTE[chColor].hex);
   }
 }
 
@@ -759,11 +758,11 @@ function drawAnt(a) {
   ctx.beginPath(); ctx.ellipse(-3.6, 0, 2.8, 2.0, 0, 0, Math.PI * 2); ctx.fill();
   if (a.phase === "return") {
     const hex = PALETTE[a.block.color].hex;
-    ctx.fillStyle = shade(hex, 0.1);
+    ctx.fillStyle = hex;
     ctx.beginPath();
     ctx.roundRect(-4, -9.5, 9, 7, 2);
     ctx.fill();
-    ctx.fillStyle = shade(hex, 0.35);
+    ctx.fillStyle = "rgba(255,255,255,0.30)";
     ctx.beginPath();
     ctx.roundRect(-4, -9.5, 9, 2.6, 2);
     ctx.fill();
