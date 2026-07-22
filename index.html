@@ -38,6 +38,23 @@
   <div class="panel menu-panel">
     <h1>🐜 Colony Flow</h1>
     <p class="tagline">블록을 탭하면 개미들이 같은 색 큐브를 나릅니다.<br>바깥쪽부터 벗겨내며 숨겨진 픽셀 아트를 발견하세요!</p>
+
+    <div id="nick-box">
+      <div id="nick-form">
+        <input id="nick-input" maxlength="12" placeholder="닉네임 (한글/영문 2~12자)" autocomplete="off">
+        <button id="btn-nick-save">로그인</button>
+      </div>
+      <div id="nick-view" class="hidden">
+        <span>🐜 <b id="nick-name"></b>님</span>
+        <button id="btn-nick-change">변경</button>
+      </div>
+    </div>
+
+    <div id="rank-box">
+      <div class="rank-title">🏆 명예의 전당 TOP 3</div>
+      <ol id="rank-list"><li class="rank-empty">불러오는 중…</li></ol>
+    </div>
+
     <div id="level-grid"></div>
     <p id="menu-progress" class="progress"></p>
     <ul class="howto">
@@ -72,6 +89,7 @@
 </div>
 
 <script src="levels.js"></script>
+<script src="firebase.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

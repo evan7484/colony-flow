@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 닉네임 기반 랭킹: 누구나 읽기 가능, 쓰기는 형식 검증 + 레벨 증가만 허용
+    match /players/{nick} {
+      allow read: if true;
+      allow create: if validPlayer(nick);
+      allow update: if validPlayer(nick)
+        && request.resource.data.bestLevel > resource.data.bestLevel;
+      allow delete: if false;
+
+      function validPlayer(nick) {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['nickname', 'bestLevel', 'updatedAt'])
+          && d.nickname is string
+          && d.nickname == nick
+          && nick.size() >= 2 && nick.size() <= 36
+          && d.bestLevel is int
+          && d.bestLevel >= 1 && d.bestLevel <= 15
+          && d.updatedAt is int;
+      }
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

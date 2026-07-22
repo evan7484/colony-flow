@@ -62,6 +62,61 @@ function saveCleared(n) {
   localStorage.setItem(SAVE_KEY, String(n));
 }
 
+// ---------- 닉네임 / 랭킹 ----------
+const NICK_KEY = "colony-flow-nick";
+const getNick = () => localStorage.getItem(NICK_KEY) || "";
+
+function renderNick() {
+  const nick = getNick();
+  show("nick-form", !nick);
+  show("nick-view", !!nick);
+  if (nick) $("nick-name").textContent = nick;
+}
+
+function bindNickUI() {
+  $("btn-nick-save").addEventListener("click", () => {
+    const nick = $("nick-input").value.trim();
+    if (!validNickname(nick)) { toast("닉네임은 한글/영문/숫자 2~12자예요!"); return; }
+    localStorage.setItem(NICK_KEY, nick);
+    renderNick();
+    toast(`${nick}님, 환영합니다! 🐜`);
+    // 이미 진행한 기록이 있으면 즉시 랭킹에 반영
+    const cleared = loadCleared();
+    if (cleared > 0) submitScore(nick, cleared).then((ok) => ok && renderRanking());
+  });
+  $("nick-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") $("btn-nick-save").click();
+  });
+  $("btn-nick-change").addEventListener("click", () => {
+    $("nick-input").value = getNick();
+    localStorage.removeItem(NICK_KEY);
+    renderNick();
+  });
+}
+
+async function renderRanking() {
+  const list = $("rank-list");
+  if (!RANK_ENABLED()) {
+    list.innerHTML = '<li class="rank-empty">랭킹 서버 연결 준비 중…</li>';
+    return;
+  }
+  try {
+    const top = await fetchTop3();
+    if (!top || top.length === 0) {
+      list.innerHTML = '<li class="rank-empty">아직 기록이 없어요 — 첫 주인공이 되어보세요!</li>';
+      return;
+    }
+    const medals = ["🥇", "🥈", "🥉"];
+    list.innerHTML = top
+      .map((p, i) =>
+        `<li><span class="rank-nick">${medals[i]} ${p.nickname}</span>` +
+        `<span class="rank-lv">레벨 ${p.bestLevel}</span></li>`)
+      .join("");
+  } catch (e) {
+    list.innerHTML = '<li class="rank-empty">랭킹을 불러오지 못했어요</li>';
+  }
+}
+
 // ---------- 화면 전환 ----------
 function show(id, on) { $(id).classList.toggle("hidden", !on); }
 
@@ -96,6 +151,8 @@ function renderMenu() {
   });
   $("menu-progress").textContent =
     cleared >= LEVELS.length ? "🏆 모든 레벨 완료!" : `진행도 ${cleared} / ${LEVELS.length}`;
+  renderNick();
+  renderRanking();
 }
 
 // ---------- 레벨 시작 ----------
@@ -491,7 +548,10 @@ function checkWin() {
   if (S.aliveCount === 0 && S.ants.length === 0) {
     S.status = "won";
     const cleared = loadCleared();
-    if (S.levelIndex + 1 > cleared) saveCleared(S.levelIndex + 1);
+    if (S.levelIndex + 1 > cleared) {
+      saveCleared(S.levelIndex + 1);
+      submitScore(getNick(), S.levelIndex + 1); // 최고 기록 갱신 시 랭킹 제출
+    }
     for (let k = 0; k < 40; k++) {
       burst(S.bx + Math.random() * S.cell * S.level.gw, S.by + Math.random() * S.cell * S.level.gh,
         ["#f4c96b", "#e06bc0", "#5bc8e8", "#62b96a"][k % 4], 1);
@@ -834,5 +894,6 @@ function loop(t) {
   requestAnimationFrame(loop);
 }
 
+bindNickUI();
 openMenu();
 requestAnimationFrame(loop);
