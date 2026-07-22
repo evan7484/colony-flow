@@ -6,7 +6,7 @@
 // 선언한 PALETTE / LEVELS / buildLevel / computeExposed를 그대로 사용
 // ============================================================
 
-const ANT_SPEED = 300;          // px/s
+const ANT_SPEED = 340;          // px/s (우회 경로를 걷기 때문에 약간 빠르게)
 const MAX_ANTS_PER_BLOCK = 4;   // 블록당 동시 파견 개미 수
 const SPAWN_INTERVAL = 0.22;    // 같은 블록의 개미 출발 간격(s)
 const BASE_SLOTS = 5;
@@ -268,39 +268,115 @@ function tileCenter(i) {
   };
 }
 
-function makePath(x0, y0, x1, y1) {
-  const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
-  const d = dist(x0, y0, x1, y1);
-  const nx = -(y1 - y0) / (d || 1), ny = (x1 - x0) / (d || 1);
-  const off = (Math.random() - 0.5) * Math.min(90, d * 0.45);
-  return { x0, y0, cx: mx + nx * off, cy: my + ny * off, x1, y1, len: Math.max(20, d * 1.1) };
+// ---- 걷기 경로: 개미는 타일을 통과할 수 없고, 빈 칸으로만 이동한다 ----
+// 아트 격자 주변에 MARGIN 칸의 여백 링을 붙인 확장 격자에서 BFS 탐색
+
+const MARGIN = 2;
+
+function extDims() {
+  return { EW: S.level.gw + MARGIN * 2, EH: S.level.gh + MARGIN * 2 };
+}
+function extBlocked(ex, ey) {
+  const ax = ex - MARGIN, ay = ey - MARGIN;
+  const { gw, gh } = S.level;
+  if (ax < 0 || ax >= gw || ay < 0 || ay >= gh) return false;
+  return !!S.alive[ay * gw + ax];
+}
+function extCenter(ei) {
+  const { EW } = extDims();
+  return {
+    x: S.bx + ((ei % EW) - MARGIN + 0.5) * S.cell,
+    y: S.by + (((ei / EW) | 0) - MARGIN + 0.5) * S.cell,
+  };
+}
+function entryCell() {
+  const { EW, EH } = extDims();
+  const ex = clamp(Math.round((S.nest.x - S.bx) / S.cell) + MARGIN, 0, EW - 1);
+  return (EH - 1) * EW + ex;
+}
+function bfsFrom(start) {
+  const { EW, EH } = extDims();
+  const dist = new Int32Array(EW * EH).fill(-1);
+  const parent = new Int32Array(EW * EH).fill(-1);
+  const q = [start];
+  dist[start] = 0;
+  for (let h = 0; h < q.length; h++) {
+    const i = q[h];
+    const ex = i % EW, ey = (i / EW) | 0;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = ex + dx, ny = ey + dy;
+      if (nx < 0 || nx >= EW || ny < 0 || ny >= EH) continue;
+      const ni = ny * EW + nx;
+      if (dist[ni] !== -1 || extBlocked(nx, ny)) continue;
+      dist[ni] = dist[i] + 1;
+      parent[ni] = i;
+      q.push(ni);
+    }
+  }
+  return { dist, parent };
+}
+function reconstructPath(parent, end) {
+  const cells = [];
+  for (let c = end; c !== -1; c = parent[c]) cells.push(c);
+  return cells.reverse();
+}
+
+// 걸어서 도달 가능한 가장 가까운 매칭 타일과 그 옆 칸까지의 경로
+function findRoute(color) {
+  const L = S.level;
+  const { EW } = extDims();
+  const { dist: d, parent } = bfsFrom(entryCell());
+  let bestTile = -1, bestCell = -1, bestD = Infinity;
+  for (const i of S.exposed) {
+    if (L.artGrid[i] !== color || !S.alive[i] || S.reserved.has(i)) continue;
+    const ex = (i % L.gw) + MARGIN, ey = ((i / L.gw) | 0) + MARGIN;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const ni = (ey + dy) * EW + (ex + dx);
+      if (d[ni] >= 0 && d[ni] < bestD) { bestD = d[ni]; bestTile = i; bestCell = ni; }
+    }
+  }
+  if (bestTile < 0) return null;
+  return { tile: bestTile, cells: reconstructPath(parent, bestCell) };
+}
+
+function makeWalkPath(pts) {
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) {
+    cum.push(cum[i - 1] + dist(pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y));
+  }
+  return { pts, cum, len: Math.max(20, cum[cum.length - 1]) };
 }
 function pathPos(p, t) {
-  const u = 1 - t;
+  const total = p.cum[p.cum.length - 1];
+  const d = clamp(t, 0, 1) * total;
+  let i = 1;
+  while (i < p.cum.length - 1 && p.cum[i] < d) i++;
+  const seg = p.cum[i] - p.cum[i - 1] || 1;
+  const k = (d - p.cum[i - 1]) / seg;
   return {
-    x: u * u * p.x0 + 2 * u * t * p.cx + t * t * p.x1,
-    y: u * u * p.y0 + 2 * u * t * p.cy + t * t * p.y1,
+    x: p.pts[i - 1].x + (p.pts[i].x - p.pts[i - 1].x) * k,
+    y: p.pts[i - 1].y + (p.pts[i].y - p.pts[i - 1].y) * k,
   };
 }
 
-function nearestExposedTile(color) {
-  let best = -1, bestD = Infinity;
-  for (const i of S.exposed) {
-    if (S.level.artGrid[i] !== color || !S.alive[i] || S.reserved.has(i)) continue;
-    const c = tileCenter(i);
-    const d = dist(c.x, c.y, S.nest.x, S.nest.y);
-    if (d < bestD) { bestD = d; best = i; }
-  }
-  return best;
-}
+const jitter = () => (Math.random() - 0.5) * S.cell * 0.3;
 
-function spawnAnt(block, tileIdx) {
-  S.reserved.add(tileIdx);
+function spawnAnt(block, route) {
+  S.reserved.add(route.tile);
   block.antsOut++;
-  const c = tileCenter(tileIdx);
+  const pts = [{ x: S.nest.x, y: S.nest.y }];
+  for (const c of route.cells) {
+    const p = extCenter(c);
+    pts.push({ x: p.x + jitter(), y: p.y + jitter() });
+  }
+  // 마지막: 옆 칸에서 타일 면에 닿는 지점까지
+  const tc = tileCenter(route.tile);
+  const last = extCenter(route.cells[route.cells.length - 1]);
+  pts.push({ x: (last.x + tc.x) / 2, y: (last.y + tc.y) / 2 });
   S.ants.push({
-    block, tile: tileIdx, phase: "go", t: 0,
-    path: makePath(S.nest.x, S.nest.y, c.x, c.y),
+    block, tile: route.tile, phase: "go", t: 0,
+    path: makeWalkPath(pts),
+    lastCell: route.cells[route.cells.length - 1],
     wig: Math.random() * Math.PI * 2,
   });
 }
@@ -484,9 +560,9 @@ function update(dt) {
     if (!b) continue;
     b.cd -= dt;
     if (b.cd <= 0 && b.antsOut < MAX_ANTS_PER_BLOCK && b.antsOut < b.remaining) {
-      const tile = nearestExposedTile(b.color);
-      if (tile >= 0) {
-        spawnAnt(b, tile);
+      const route = findRoute(b.color);
+      if (route) {
+        spawnAnt(b, route);
         b.cd = SPAWN_INTERVAL;
       }
     }
@@ -500,10 +576,12 @@ function update(dt) {
     if (a.t < 1) continue;
 
     if (a.phase === "go") {
-      // 타일 도착: 큐브를 집는다 (보드에서 제거 → 노출 갱신)
+      // 타일에 닿는 순간: 큐브가 팝 되며 보드에서 제거 → 노출 갱신
       const c = tileCenter(a.tile);
+      burst(c.x, c.y, PALETTE[S.level.artGrid[a.tile]].hex, 5);
       removeTile(a.tile);
       a.phase = "return";
+      const touch = pathPos(a.path, 1);
       a.t = 0;
       let tx = S.nest.x, ty = S.nest.y + 20;
       if (a.block.el) {
@@ -511,7 +589,26 @@ function update(dt) {
         tx = r.left + r.width / 2;
         ty = r.top + r.height / 2;
       }
-      a.path = makePath(c.x, c.y, tx, ty);
+      // 귀환도 걸어서: 빈 칸을 따라 보드 아래로 나간 뒤 슬롯으로
+      const { EW, EH } = extDims();
+      const { dist: d2, parent: p2 } = bfsFrom(a.lastCell);
+      let exit = -1, bestCost = Infinity;
+      for (let ex = 0; ex < EW; ex++) {
+        const i = (EH - 1) * EW + ex;
+        if (d2[i] < 0) continue;
+        const p = extCenter(i);
+        const cost = d2[i] * S.cell + Math.abs(p.x - tx) * 0.6;
+        if (cost < bestCost) { bestCost = cost; exit = i; }
+      }
+      const pts = [{ x: touch.x, y: touch.y }];
+      if (exit >= 0) {
+        for (const cell of reconstructPath(p2, exit)) {
+          const p = extCenter(cell);
+          pts.push({ x: p.x + jitter(), y: p.y + jitter() });
+        }
+      }
+      pts.push({ x: tx, y: ty });
+      a.path = makeWalkPath(pts);
     } else {
       // 슬롯 도착: 배달 완료
       const b = a.block;
