@@ -854,9 +854,11 @@ function drawAnt(a) {
   ctx.rotate(ang);
   ctx.translate(0, sway);
   ctx.scale(ANT_SCALE * hole, ANT_SCALE * hole);
+  // 개미 색 = 소속 블록 색 (배경과 구분되도록 다리는 어둡게, 몸통엔 테두리)
+  const antHex = PALETTE[a.block.color].hex;
   // 다리
-  ctx.strokeStyle = "#2e2318";
-  ctx.lineWidth = 0.7;
+  ctx.strokeStyle = shade(antHex, -0.5);
+  ctx.lineWidth = 0.8;
   const legK = Math.sin(a.wig * 2) * 1.1;
   for (const lx of [-2.6, 0, 2.4]) {
     ctx.beginPath();
@@ -865,10 +867,12 @@ function drawAnt(a) {
     ctx.stroke();
   }
   // 몸통 (머리-가슴-배)
-  ctx.fillStyle = "#2e2318";
-  ctx.beginPath(); ctx.ellipse(3.4, 0, 2.0, 1.6, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(0, 0, 1.9, 1.6, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(-3.6, 0, 2.8, 2.0, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = antHex;
+  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.lineWidth = 0.6;
+  ctx.beginPath(); ctx.ellipse(3.4, 0, 2.0, 1.6, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0, 0, 1.9, 1.6, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(-3.6, 0, 2.8, 2.0, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   if (a.phase === "return") {
     const hex = PALETTE[a.block.color].hex;
     ctx.fillStyle = hex;
