@@ -700,20 +700,11 @@ function drawBoard() {
 
   for (let i = 0; i < L.artGrid.length; i++) {
     const chColor = L.artGrid[i];
-    if (chColor === ".") continue;
+    // 집어간 타일은 아무것도 남기지 않는다
+    if (chColor === "." || !S.alive[i]) continue;
     const x = bx + (i % L.gw) * cell;
     const y = by + ((i / L.gw) | 0) * cell;
-    if (!S.alive[i]) {
-      // 발견된 픽셀 아트 (밝고 평평하게)
-      ctx.fillStyle = shade(PALETTE[chColor].hex, 0.18);
-      ctx.beginPath();
-      ctx.roundRect(x + 1, y + 1, cell - 2, cell - 2, 3);
-      ctx.fill();
-      ctx.fillStyle = "rgba(255,255,255,0.10)";
-      ctx.fillRect(x + 1, y + 1, cell - 2, (cell - 2) * 0.35);
-    } else {
-      drawCube(x, y, cell, PALETTE[chColor].hex, !S.exposed.has(i));
-    }
+    drawCube(x, y, cell, PALETTE[chColor].hex, !S.exposed.has(i));
   }
 }
 
