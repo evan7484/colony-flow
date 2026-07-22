@@ -43,7 +43,7 @@ const S = {
   aliveCount: 0,
   exposed: new Set(),
   reserved: new Set(),       // 개미가 예약한 타일
-  tray: [],                  // 트레이 블록
+  trayCols: [],              // 트레이 열 스택 [[block,...],...] — 각 열의 맨 앞(0)만 뺄 수 있음
   slots: [],                 // { el, block|null }
   ants: [],
   particles: [],
@@ -163,7 +163,10 @@ function startLevel(i) {
   S.aliveCount = S.alive.filter(Boolean).length;
   S.reserved = new Set();
   S.exposed = computeExposed(S.alive, S.level.gw, S.level.gh);
-  S.tray = S.level.blocks.map((b) => ({ ...b, antsOut: 0, cd: 0, inSlot: false, el: null }));
+  const blockCopies = new Map(
+    S.level.blocks.map((b) => [b.id, { ...b, antsOut: 0, cd: 0, inSlot: false, el: null }])
+  );
+  S.trayCols = S.level.trayCols.map((col) => col.map((id) => blockCopies.get(id)));
   S.ants = [];
   S.particles = [];
   S.boosters = { slot: 1, shuffle: 1, pickup: 1, vacuum: 1 };
@@ -217,10 +220,33 @@ function makeBlockEl(block) {
   return el;
 }
 
+const trayFlat = () => S.trayCols.flat();
+
 function buildTrayDOM() {
+  for (const b of trayFlat()) makeBlockEl(b);
+  refreshTrayDOM();
+}
+
+// 열 스택을 DOM에 반영: 각 열의 맨 앞 블록만 활성화, 뒤 블록은 잠금 표시
+function refreshTrayDOM() {
   const tray = $("tray");
   tray.innerHTML = "";
-  for (const b of S.tray) tray.appendChild(makeBlockEl(b));
+  for (const col of S.trayCols) {
+    const colEl = document.createElement("div");
+    colEl.className = "tray-col";
+    col.forEach((b, ri) => {
+      b.el.classList.toggle("behind", ri > 0);
+      colEl.appendChild(b.el);
+    });
+    tray.appendChild(colEl);
+  }
+}
+
+function removeFromTray(block) {
+  for (const col of S.trayCols) {
+    const i = col.indexOf(block);
+    if (i >= 0) { col.splice(i, 1); return; }
+  }
 }
 
 function updateBlockCount(block) {
@@ -249,7 +275,7 @@ function toast(msg) {
 
 // ---------- 블록 조작 ----------
 function blockById(id) {
-  const inTray = S.tray.find((b) => b.id === id);
+  const inTray = trayFlat().find((b) => b.id === id);
   if (inTray) return inTray;
   for (const s of S.slots) if (s.block && s.block.id === id) return s.block;
   return null;
@@ -265,9 +291,18 @@ function onBlockTap(block) {
   }
   if (S.mode !== "none") setMode("none");
 
+  // 스택 규칙: 각 열의 맨 앞 블록만 뺄 수 있다
+  const col = S.trayCols.find((c) => c.includes(block));
+  if (!col) return;
+  if (col[0] !== block) {
+    toast("앞에 있는 블록부터 빼야 해요!");
+    block.el.classList.add("shake");
+    setTimeout(() => block.el && block.el.classList.remove("shake"), 350);
+    return;
+  }
   const group = [block];
   if (block.linkedTo) {
-    const other = S.tray.find((b) => b.id === block.linkedTo);
+    const other = trayFlat().find((b) => b.id === block.linkedTo);
     if (other) group.push(other);
   }
   const free = S.slots.filter((s) => !s.block).length;
@@ -278,12 +313,13 @@ function onBlockTap(block) {
     return;
   }
   for (const b of group) placeInSlot(b);
+  refreshTrayDOM();
 }
 
 function placeInSlot(block) {
   const slot = S.slots.find((s) => !s.block);
   if (!slot) return;
-  S.tray.splice(S.tray.indexOf(block), 1);
+  removeFromTray(block);
   // 슬롯에 들어가면 연결 해제
   if (block.linkedTo) {
     const other = blockById(block.linkedTo);
@@ -476,12 +512,27 @@ function useBooster(kind) {
     toast("슬롯이 6칸으로 늘었어요!");
   } else if (kind === "shuffle") {
     S.boosters.shuffle = 0;
-    for (let i = S.tray.length - 1; i > 0; i--) {
+    // 남은 블록을 다시 섞어 열 스택에 재배치 (연결 쌍은 같은 열에 연달아)
+    const blocks = trayFlat();
+    for (let i = blocks.length - 1; i > 0; i--) {
       const j = (Math.random() * (i + 1)) | 0;
-      [S.tray[i], S.tray[j]] = [S.tray[j], S.tray[i]];
+      [blocks[i], blocks[j]] = [blocks[j], blocks[i]];
     }
-    const tray = $("tray");
-    for (const b of S.tray) tray.appendChild(b.el);
+    const colCount = S.trayCols.length;
+    S.trayCols = Array.from({ length: colCount }, () => []);
+    const placed = new Set();
+    const shortestCol = () => S.trayCols.reduce((a, c) => (c.length < a.length ? c : a));
+    for (const b of blocks) {
+      if (placed.has(b.id)) continue;
+      const col = shortestCol();
+      col.push(b);
+      placed.add(b.id);
+      if (b.linkedTo) {
+        const p = blocks.find((x) => x.id === b.linkedTo && !placed.has(x.id));
+        if (p) { col.push(p); placed.add(p.id); }
+      }
+    }
+    refreshTrayDOM();
     toast("트레이를 섞었어요!");
   } else if (kind === "pickup" || kind === "vacuum") {
     if (!S.slots.some((s) => s.block)) { toast("슬롯에 블록이 없어요!"); return; }
@@ -504,8 +555,10 @@ function doPickup(block) {
   if (block.remaining <= 0) {
     completeBlock(block);
   } else {
-    S.tray.push(block);
-    $("tray").appendChild(block.el);
+    // 가장 짧은 열의 맨 앞에 끼워 넣어 바로 다시 쓸 수 있게 한다
+    const col = S.trayCols.reduce((a, c) => (c.length < a.length ? c : a));
+    col.unshift(block);
+    refreshTrayDOM();
     toast("블록을 트레이로 회수했어요");
   }
   updateBoosterDOM();

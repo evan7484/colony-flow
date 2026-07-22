@@ -76,21 +76,32 @@ html, body {
   pointer-events: auto;
 }
 
-/* ---------- 트레이 ---------- */
+/* ---------- 트레이 (열 스택: 맨 위 블록만 꺼낼 수 있음) ---------- */
 #tray {
   display: flex;
-  flex-wrap: wrap;
   justify-content: center;
-  align-content: flex-start;
-  gap: 7px;
+  align-items: flex-start;
+  gap: 10px;
   padding: 10px 12px;
   min-height: 118px;
-  max-height: 178px;
+  max-height: 236px;
   overflow-y: auto;
   background: rgba(30,22,14,0.9);
   border-top: 1px solid rgba(232,221,200,0.12);
   pointer-events: auto;
 }
+.tray-col {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+/* 뒤에 깔린 블록: 어둡고 작게, 꺼낼 수 없음을 표시 */
+.block.behind {
+  filter: brightness(0.45) saturate(0.6);
+  transform: scale(0.88);
+  box-shadow: inset 0 0 0 100px rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.4);
+}
+.block.behind:active { transform: scale(0.88); }
 
 /* ---------- 블록 ---------- */
 .block {
@@ -383,7 +394,8 @@ html, body {
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 @media (max-height: 700px) {
-  #tray { min-height: 96px; max-height: 140px; }
+  #tray { min-height: 96px; max-height: 190px; }
+  .tray-col { gap: 4px; }
   .slot { width: 50px; height: 50px; }
   .slot .block { width: 42px; height: 42px; }
   .block { width: 44px; height: 44px; }

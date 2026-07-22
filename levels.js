@@ -288,7 +288,7 @@ function buildLevel(def, index) {
     }
   }
 
-  const rng = mulberry32(1000 + index * 7919);
+  const rng = mulberry32(1000 + index * 7919 + (def.traySeed || 0) * 104729);
   let blockId = 0;
   const blocks = [];
   for (const color of Object.keys(counts)) {
@@ -312,7 +312,28 @@ function buildLevel(def, index) {
     linked++;
     i++;
   }
-  return { name: def.name, gw, gh, artGrid, counts, blocks };
+
+  // 트레이 열 배치: 스택 구조 (맨 위 블록만 뺄 수 있음)
+  // 연결 쌍은 같은 열에 연달아 배치해 앞 블록을 탭하면 함께 나가도록 한다
+  const colCount = Math.max(3, Math.min(5, Math.ceil(blocks.length / 3)));
+  const cols = Array.from({ length: colCount }, () => []);
+  const placed = new Set();
+  const shortest = () => cols.reduce((a, c) => (c.length < a.length ? c : a));
+  for (const b of blocks) {
+    if (placed.has(b.id)) continue;
+    const col = shortest();
+    col.push(b);
+    placed.add(b.id);
+    if (b.linkedTo && !placed.has(b.linkedTo)) {
+      const p = blocks.find((x) => x.id === b.linkedTo);
+      col.push(p);
+      placed.add(p.id);
+    }
+  }
+  return {
+    name: def.name, gw, gh, artGrid, counts, blocks,
+    trayCols: cols.map((c) => c.map((b) => b.id)),
+  };
 }
 
 // 노출 판정: 그림 바깥과 연결된 빈 칸에 4방향 인접한 살아있는 타일 = 먹을 수 있음
