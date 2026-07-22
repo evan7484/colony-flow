@@ -149,11 +149,23 @@ html, body {
   color: #fff;
   text-shadow: 0 2px 3px rgba(0,0,0,0.55);
 }
-.link-badge {
+/* 연결 블록: 금색 테두리 + 두 블록을 잇는 연결 막대 (사슬 느낌) */
+.block.linked-top, .block.linked-bottom {
+  outline: 2.5px solid #f4c96b;
+  outline-offset: 1.5px;
+}
+.block.linked-top::after {
+  content: "";
   position: absolute;
-  top: -7px; right: -7px;
-  font-size: 13px;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: -11px;
+  width: 14px;
+  height: 13px;
+  background: #f4c96b;
+  border: 2px solid #a87b22;
+  border-radius: 4px;
+  z-index: 2;
 }
 .slot .block { width: 48px; height: 48px; }
 
@@ -343,6 +355,77 @@ html, body {
 .level-btn .lv-check { font-size: 11px; color: #8fd47a; font-weight: 800; }
 .level-btn.locked { opacity: 0.45; cursor: default; }
 .level-btn.cleared { border-color: rgba(143,212,122,0.5); }
+
+/* ---------- 커스텀 레벨 ---------- */
+#btn-custom {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px 0;
+  border-radius: 12px;
+  border: 1px dashed rgba(244,201,107,0.5);
+  background: rgba(244,201,107,0.08);
+  color: #f4c96b;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+#btn-custom:hover { background: rgba(244,201,107,0.18); }
+
+#file-label {
+  display: inline-block;
+  padding: 11px 24px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f4c96b, #d9a53f);
+  color: #241b12;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-bottom: 14px;
+}
+#custom-preview {
+  display: block;
+  margin: 4px auto 10px;
+  max-width: 100%;
+  max-height: 220px;
+  image-rendering: pixelated;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.3);
+  padding: 8px;
+}
+#custom-stats {
+  font-size: 12.5px;
+  color: #8fd47a;
+  font-weight: 700;
+  min-height: 18px;
+  margin-bottom: 10px;
+}
+.seg-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.seg-label { font-size: 12px; color: #b3a488; margin-right: 6px; }
+.seg-row button {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(232,221,200,0.22);
+  background: rgba(58,44,28,0.9);
+  color: #b3a488;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.seg-row button.on {
+  background: linear-gradient(180deg, #f4c96b, #d9a53f);
+  color: #241b12;
+  border: none;
+}
+.seg-row { margin-bottom: 10px; }
+.panel .btn-row button:disabled { opacity: 0.35; cursor: default; }
 
 .howto {
   list-style: none;

@@ -63,6 +63,7 @@
     </div>
 
     <div id="level-grid"></div>
+    <button id="btn-custom">📷 커스텀 레벨 만들기</button>
     <p id="menu-progress" class="progress"></p>
     <ul class="howto">
       <li>🧊 블록의 숫자만큼 개미가 큐브를 나릅니다 — 다 나르면 슬롯이 비워져요</li>
@@ -79,7 +80,32 @@
     <canvas id="win-art"></canvas>
     <div class="btn-row">
       <button id="btn-next" class="primary">다음 레벨 →</button>
+      <button id="btn-share-win" class="hidden">🔗 링크 복사</button>
       <button id="btn-menu2">레벨 선택</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="custom-overlay">
+  <div class="panel">
+    <h1>📷 커스텀 레벨</h1>
+    <p class="tagline">사진을 픽셀 아트 스테이지로 바꿔보세요.<br>투명 배경 PNG는 배경이 빈 칸이 됩니다!</p>
+    <label id="file-label" for="custom-file">🖼 사진 선택</label>
+    <input type="file" id="custom-file" accept="image/*" hidden>
+    <canvas id="custom-preview" class="hidden"></canvas>
+    <div id="custom-stats"></div>
+    <div class="seg-row" id="custom-size">
+      <span class="seg-label">크기</span>
+      <button data-v="s">작게</button><button data-v="m" class="on">보통</button><button data-v="l">크게</button>
+    </div>
+    <div class="seg-row" id="custom-colors">
+      <span class="seg-label">색상</span>
+      <button data-v="3">3</button><button data-v="4">4</button><button data-v="5" class="on">5</button><button data-v="6">6</button>
+    </div>
+    <div class="btn-row">
+      <button id="btn-custom-play" class="primary" disabled>플레이</button>
+      <button id="btn-custom-share" disabled>🔗 링크 복사</button>
+      <button id="btn-custom-close">닫기</button>
     </div>
   </div>
 </div>
@@ -97,6 +123,7 @@
 
 <script src="levels.js"></script>
 <script src="firebase.js"></script>
+<script src="custom.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

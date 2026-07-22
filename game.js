@@ -203,8 +203,34 @@ function renderMenu() {
 
 // ---------- 레벨 시작 ----------
 function startLevel(i) {
+  startLevelFromBuilt(buildLevel(LEVELS[i], i), i);
+}
+
+// 커스텀 레벨: 클리어 가능한 트레이 배치를 시드 탐색으로 찾은 뒤 시작
+function startCustomLevel(art, name) {
+  const def = customDef(art, name);
+  let level = null;
+  for (let s = 0; s <= 30; s++) {
+    const cand = buildLevel({ ...def, traySeed: s }, 999);
+    if (stackSolvable(cand, BASE_SLOTS)) { level = cand; break; }
+  }
+  if (!level) {
+    level = buildLevel(def, 999);
+    setTimeout(() => toast("⚠️ 이 배치는 클리어가 어려울 수 있어요!"), 400);
+  }
+  S.customArt = { art, name };
+  startLevelFromBuilt(level, -1);
+}
+
+function retryLevel() {
+  if (S.custom) startCustomLevel(S.customArt.art, S.customArt.name);
+  else startLevel(S.levelIndex);
+}
+
+function startLevelFromBuilt(level, i) {
   S.levelIndex = i;
-  S.level = buildLevel(LEVELS[i], i);
+  S.custom = i < 0;
+  S.level = level;
   S.alive = S.level.artGrid.map((c) => c !== ".");
   S.aliveCount = S.alive.filter(Boolean).length;
   S.reserved = new Set();
@@ -222,7 +248,9 @@ function startLevel(i) {
   S.paused = false;
   S.screen = "play";
 
-  $("level-title").textContent = `레벨 ${i + 1} · ${S.level.name}`;
+  $("level-title").textContent = S.custom
+    ? `📷 ${S.level.name}`
+    : `레벨 ${i + 1} · ${S.level.name}`;
   buildSlotsDOM(BASE_SLOTS);
   buildTrayDOM();
   updateBoosterDOM();
@@ -255,12 +283,6 @@ function makeBlockEl(block) {
   el.style.setProperty("--c", PALETTE[block.color].hex);
   el.style.setProperty("--c-dark", shade(PALETTE[block.color].hex, -0.35));
   el.innerHTML = `<span class="num">${block.remaining}</span>`;
-  if (block.linkedTo) {
-    const badge = document.createElement("span");
-    badge.className = "link-badge";
-    badge.textContent = "🔗";
-    el.appendChild(badge);
-  }
   el.addEventListener("click", () => onBlockTap(block));
   block.el = el;
   return el;
@@ -282,6 +304,10 @@ function refreshTrayDOM() {
     colEl.className = "tray-col";
     col.forEach((b, ri) => {
       b.el.classList.toggle("behind", ri > 0);
+      // 연결 쌍은 세로로 붙어 있으므로 테두리 + 연결 막대로 묶어서 표현
+      const next = col[ri + 1], prev = col[ri - 1];
+      b.el.classList.toggle("linked-top", !!(b.linkedTo && next && next.id === b.linkedTo));
+      b.el.classList.toggle("linked-bottom", !!(b.linkedTo && prev && prev.id === b.linkedTo));
       colEl.appendChild(b.el);
     });
     tray.appendChild(colEl);
@@ -371,12 +397,10 @@ function placeInSlot(block) {
     const other = blockById(block.linkedTo);
     if (other) {
       other.linkedTo = null;
-      const badge = other.el && other.el.querySelector(".link-badge");
-      if (badge) badge.remove();
+      if (other.el) other.el.classList.remove("linked-top", "linked-bottom");
     }
     block.linkedTo = null;
-    const badge = block.el.querySelector(".link-badge");
-    if (badge) badge.remove();
+    block.el.classList.remove("linked-top", "linked-bottom");
   }
   slot.block = block;
   block.inSlot = true;
@@ -646,10 +670,12 @@ function checkWin() {
   if (S.status !== "playing") return;
   if (S.aliveCount === 0 && S.ants.length === 0) {
     S.status = "won";
-    const cleared = loadCleared();
-    if (S.levelIndex + 1 > cleared) {
-      saveCleared(S.levelIndex + 1);
-      submitScore(getNick(), S.levelIndex + 1, getPinHash()); // 최고 기록 갱신 시 랭킹 제출
+    if (!S.custom) {
+      const cleared = loadCleared();
+      if (S.levelIndex + 1 > cleared) {
+        saveCleared(S.levelIndex + 1);
+        submitScore(getNick(), S.levelIndex + 1, getPinHash()); // 최고 기록 갱신 시 랭킹 제출
+      }
     }
     for (let k = 0; k < 40; k++) {
       burst(S.bx + Math.random() * S.cell * S.level.gw, S.by + Math.random() * S.cell * S.level.gh,
@@ -661,9 +687,10 @@ function checkWin() {
 
 function showWin() {
   drawArtPreview($("win-art"), S.level);
-  $("win-title").textContent = `레벨 ${S.levelIndex + 1} 클리어!`;
+  $("win-title").textContent = S.custom ? `📷 ${S.level.name} 클리어!` : `레벨 ${S.levelIndex + 1} 클리어!`;
   $("win-sub").textContent = `「${S.level.name}」 픽셀 아트를 발견했어요`;
-  $("btn-next").style.display = S.levelIndex + 1 < LEVELS.length ? "" : "none";
+  $("btn-next").style.display = !S.custom && S.levelIndex + 1 < LEVELS.length ? "" : "none";
+  $("btn-share-win").classList.toggle("hidden", !S.custom);
   show("win-overlay", true);
 }
 
@@ -967,8 +994,18 @@ resizeCanvas();
 
 // ---------- 입력 바인딩 ----------
 $("btn-back").addEventListener("click", openMenu);
-$("btn-retry").addEventListener("click", () => startLevel(S.levelIndex));
-$("btn-retry2").addEventListener("click", () => startLevel(S.levelIndex));
+$("btn-retry").addEventListener("click", retryLevel);
+$("btn-retry2").addEventListener("click", retryLevel);
+$("btn-share-win").addEventListener("click", async () => {
+  if (!S.customArt) return;
+  const url = location.origin + location.pathname + encodeCustom(S.customArt.art, S.customArt.name);
+  try {
+    await navigator.clipboard.writeText(url);
+    toast("🔗 링크를 복사했어요!");
+  } catch (e) {
+    toast("복사 실패 — 주소창 링크를 직접 복사해주세요");
+  }
+});
 $("btn-next").addEventListener("click", () => startLevel(Math.min(S.levelIndex + 1, LEVELS.length - 1)));
 $("btn-menu2").addEventListener("click", openMenu);
 $("btn-menu3").addEventListener("click", openMenu);
@@ -1005,5 +1042,14 @@ document.querySelectorAll(".speed-btn").forEach((btn) => {
 });
 
 bindNickUI();
-openMenu();
+bindCustomUI();
+
+// 공유 링크(#c=...)로 들어온 경우 곧바로 커스텀 레벨 시작
+const sharedCustom = decodeCustom(location.hash);
+if (sharedCustom) {
+  startCustomLevel(sharedCustom.art, sharedCustom.name);
+  setTimeout(() => toast("📷 공유된 커스텀 레벨입니다!"), 600);
+} else {
+  openMenu();
+}
 requestAnimationFrame(loop);

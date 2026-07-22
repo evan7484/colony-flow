@@ -590,6 +590,74 @@ function computeExposed(aliveMask, gw, gh) {
   return exposed;
 }
 
-const CF = { PALETTE, LEVELS, mulberry32, splitCount, buildLevel, computeExposed };
+// 스택 트레이 제약(각 열 맨 앞만 꺼낼 수 있음) 하에서 그리디 자동 플레이로
+// 클리어 가능한지 검사. 커스텀 레벨의 traySeed 탐색에 사용된다
+function stackSolvable(level, slotCount) {
+  const { gw, gh, artGrid } = level;
+  const alive = artGrid.map((c) => c !== ".");
+  let aliveCount = alive.filter(Boolean).length;
+  const byId = new Map(level.blocks.map((b) => [b.id, { ...b }]));
+  const cols = level.trayCols.map((c) => c.map((id) => byId.get(id)));
+  let slots = [];
+  let steps = 0;
+
+  const exposedCountOf = (color) => {
+    const ex = computeExposed(alive, gw, gh);
+    let n = 0;
+    for (const i of ex) if (artGrid[i] === color) n++;
+    return n;
+  };
+  const drain = () => {
+    let progress = true;
+    while (progress) {
+      progress = false;
+      for (const b of slots) {
+        while (b.remaining > 0) {
+          const ex = computeExposed(alive, gw, gh);
+          let target = -1;
+          for (const i of ex) if (artGrid[i] === b.color) { target = i; break; }
+          if (target < 0) break;
+          alive[target] = false;
+          aliveCount--;
+          b.remaining--;
+          progress = true;
+        }
+      }
+      slots = slots.filter((b) => b.remaining > 0);
+    }
+  };
+  const takeGroup = (col) => {
+    const g = [col[0]];
+    if (col[0].linkedTo && col[1] && col[1].id === col[0].linkedTo) g.push(col[1]);
+    return g;
+  };
+
+  while (steps++ < 800) {
+    drain();
+    if (aliveCount === 0) return true;
+    const free = slotCount - slots.length;
+    const groups = cols.filter((c) => c.length > 0).map(takeGroup).filter((g) => g.length <= free);
+    if (!groups.length) return false;
+    let best = null, bestScore = -1;
+    for (const g of groups) {
+      const score = g.reduce((s, b) => s + Math.min(b.remaining, exposedCountOf(b.color)), 0);
+      if (score > bestScore) { bestScore = score; best = g; }
+    }
+    if (bestScore === 0) {
+      if (free < 2) return false;
+      best = groups[0];
+    }
+    for (const b of best) {
+      for (const c of cols) {
+        const i = c.indexOf(b);
+        if (i >= 0) c.splice(i, 1);
+      }
+      slots.push(b);
+    }
+  }
+  return false;
+}
+
+const CF = { PALETTE, LEVELS, mulberry32, splitCount, buildLevel, computeExposed, stackSolvable };
 if (typeof globalThis !== "undefined") globalThis.CF = CF;
 if (typeof module !== "undefined" && module.exports) module.exports = CF;
